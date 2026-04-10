@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ personal.name }} — Resume</title>
+  <style>
+    /* ── Reset ───────────────────────────────────────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      font-size: 10.5pt;
+      line-height: 1.45;
+      color: #111;
+      background: #fff;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 6pt;
+    }
+    .header h1 {
+      font-size: 20pt;
+      font-weight: bold;
+      letter-spacing: 1pt;
+      text-transform: uppercase;
+      font-variant: small-caps;
+    }
+    .contact-line {
+      font-size: 9.5pt;
+      color: #222;
+      margin-top: 4pt;
+    }
+    .contact-line a { color: #111; text-decoration: underline; }
+    .sep { margin: 0 5pt; color: #666; }
+
+    /* ── Section titles — match LaTeX \scshape + titlerule ──────────────── */
+    .section {
+      margin-top: 10pt;
+    }
+    .section-title {
+      font-size: 11pt;
+      font-variant: small-caps;
+      font-weight: bold;
+      letter-spacing: 0.5pt;
+      border-bottom: 1.2px solid #111;
+      padding-bottom: 1.5pt;
+      margin-bottom: 5pt;
+      text-transform: lowercase; /* small-caps handles visual */
+    }
+
+    /* ── About / Summary ─────────────────────────────────────────────────── */
+    .summary-text {
+      font-size: 10pt;
+      line-height: 1.5;
+      color: #1a1a1a;
+    }
+
+    /* ── Experience & subheadings ────────────────────────────────────────── */
+    .job { margin-bottom: 7pt; }
+
+    .subheading-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .subheading-left  { font-size: 10.5pt; }
+    .subheading-right { font-size: 9.5pt; color: #333; text-align: right; white-space: nowrap; }
+
+    .company-name { font-weight: bold; }
+    .role-name    { font-style: italic; font-size: 9.5pt; color: #333; }
+
+    .bullet-list {
+      margin-top: 3pt;
+      padding-left: 16pt;
+      list-style-type: disc;
+    }
+    .bullet-list li {
+      font-size: 9.5pt;
+      margin-bottom: 1.5pt;
+      line-height: 1.45;
+    }
+
+    /* ── Projects ────────────────────────────────────────────────────────── */
+    .project { margin-bottom: 7pt; }
+
+    .project-heading-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .project-name-tech {
+      font-size: 10pt;
+    }
+    .project-name  { font-weight: bold; }
+    .project-tech  { font-style: italic; color: #333; }
+    .project-period { font-size: 9.5pt; color: #333; white-space: nowrap; }
+
+    .project .bullet-list { margin-top: 2pt; }
+
+    /* ── Technical Skills ────────────────────────────────────────────────── */
+    .skills-block {
+      font-size: 9.5pt;
+      line-height: 1.7;
+    }
+    .skill-line { margin-bottom: 1pt; }
+    .skill-cat  { font-weight: bold; }
+
+    /* ── Education ───────────────────────────────────────────────────────── */
+    .edu-entry  { margin-bottom: 6pt; }
+    .edu-notes  { font-size: 9pt; color: #333; margin-top: 2pt; padding-left: 16pt; }
+
+    /* ── Languages ───────────────────────────────────────────────────────── */
+    .lang-line { font-size: 9.5pt; }
+
+  </style>
+</head>
+<body>
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
+  <div class="header">
+    <h1>{{ personal.name }}</h1>
+    <div class="contact-line">
+      {{ personal.location }}
+      {% if personal.email %}
+        <span class="sep">|</span>
+        <a href="mailto:{{ personal.email }}">{{ personal.email }}</a>
+      {% endif %}
+      {% if personal.linkedin %}
+        <span class="sep">|</span>
+        <a href="https://{{ personal.linkedin }}">{{ personal.linkedin }}</a>
+      {% endif %}
+      {% if personal.github %}
+        <span class="sep">|</span>
+        <a href="https://{{ personal.github }}">{{ personal.github }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ══ ABOUT ═══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">About</div>
+    <div class="summary-text">{{ personal.summary }}</div>
+  </div>
+
+  <!-- ══ TECHNICAL SKILLS ════════════════════════════════════════════════ -->
+  {% if skills %}
+  <div class="section">
+    <div class="section-title">Technical Skills</div>
+    <div class="skills-block">
+      {% if skills.languages %}
+      <div class="skill-line">
+        <span class="skill-cat">Languages: </span>{{ skills.languages | join(", ") }}
+      </div>
+      {% endif %}
+      {% if skills.backend %}
+      <div class="skill-line">
+        <span class="skill-cat">Backend &amp; APIs: </span>{{ skills.backend | join(", ") }}
+      </div>
+      {% endif %}
+      {% if skills.data_ml %}
+      <div class="skill-line">
+        <span class="skill-cat">Data &amp; ML: </span>{{ skills.data_ml | join(", ") }}
+      </div>
+      {% endif %}
+      {% if skills.devops %}
+      <div class="skill-line">
+        <span class="skill-cat">DevOps &amp; Tools: </span>{{ skills.devops | join(", ") }}
+      </div>
+      {% endif %}
+      {% if skills.engineering %}
+      <div class="skill-line">
+        <span class="skill-cat">Data Engineering: </span>{{ skills.engineering | join(", ") }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ══ EXPERIENCE ══════════════════════════════════════════════════════ -->
+  {% if experience %}
+  <div class="section">
+    <div class="section-title">Experience</div>
+    {% for job in experience %}
+    <div class="job">
+
+      <div class="subheading-row">
+        <div class="subheading-left">
+          <span class="company-name">{{ job.company }}</span>
+        </div>
+        <div class="subheading-right">{{ job.period }}</div>
+      </div>
+
+      <div class="subheading-row" style="margin-top:1pt;">
+        <div class="subheading-left">
+          <span class="role-name">{{ job.title }}</span>
+        </div>
+        <div class="subheading-right">{{ job.location }}</div>
+      </div>
+
+      {% if job.bullets %}
+      <ul class="bullet-list">
+        {% for bullet in job.bullets %}
+        <li>{{ bullet }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ══ PROJECTS ════════════════════════════════════════════════════════ -->
+  {% if projects %}
+  <div class="section">
+    <div class="section-title">Projects</div>
+    {% for project in projects %}
+    <div class="project">
+
+      <div class="project-heading-row">
+        <div class="project-name-tech">
+          <span class="project-name">{{ project.name }}</span>
+          {% if project.tech %}
+          <span class="project-tech"> | {{ project.tech }}</span>
+          {% endif %}
+        </div>
+        {% if project.period %}
+        <span class="project-period">{{ project.period }}</span>
+        {% endif %}
+      </div>
+
+      {% if project.bullets %}
+      <ul class="bullet-list">
+        {% for b in project.bullets %}
+        <li>{{ b }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div style="font-size:9.5pt; color:#222; margin-top:2pt; padding-left:16pt;">
+        {{ project.description }}
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ══ EDUCATION ═══════════════════════════════════════════════════════ -->
+  {% if education %}
+  <div class="section">
+    <div class="section-title">Education</div>
+    {% for edu in education %}
+    <div class="edu-entry">
+
+      <div class="subheading-row">
+        <div class="subheading-left">
+          <span class="company-name">{{ edu.school }}</span>
+        </div>
+        <div class="subheading-right">{{ edu.period }}</div>
+      </div>
+
+      <div class="subheading-row" style="margin-top:1pt;">
+        <div class="subheading-left">
+          <span class="role-name">{{ edu.degree }}</span>
+        </div>
+        <div class="subheading-right">{{ edu.location }}</div>
+      </div>
+
+      {% if edu.notes %}
+      <div class="edu-notes">{{ edu.notes }}</div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ══ LANGUAGES ═══════════════════════════════════════════════════════ -->
+  {% if spoken_languages %}
+  <div class="section">
+    <div class="section-title">Languages</div>
+    <div class="skills-block">
+      <div class="lang-line">
+        {% for lang in spoken_languages %}
+        <span class="skill-cat">{{ lang.name }}</span> ({{ lang.level }}){% if not loop.last %},&nbsp;&nbsp;{% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</body>
+</html>

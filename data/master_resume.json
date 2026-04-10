@@ -1,0 +1,135 @@
+{
+  "personal": {
+    "name":     "Syune Shakaryan",
+    "title":    "Python Developer",
+    "email":    "syuneshakaryan@gmail.com",
+    "phone":    "",
+    "location": "Yerevan, Armenia",
+    "linkedin": "linkedin.com/in/syune-shakaryan",
+    "github":   "",
+    "summary":  "Python Developer with 1.5+ years of experience building backend systems, data pipelines, and machine learning models. Skilled in REST APIs, data processing workflows, and automation in fast-paced startup environments. Familiar with AI-assisted development tools and modern AI concepts including LLMs, prompt engineering, and AI agents. Passionate about leveraging AI-driven development to build scalable backend systems and intelligent software solutions."
+  },
+
+  "experience": [
+    {
+      "company":  "Algotitan",
+      "title":    "Python Developer",
+      "period":   "March 2025 – Present",
+      "location": "Yerevan, Armenia",
+      "bullets": [
+        {
+          "text": "Joined at an early-stage startup and scaled core automation and data infrastructure to support company growth.",
+          "tags": ["startup", "automation", "infrastructure", "backend", "Python", "scaling"]
+        },
+        {
+          "text": "Developed and deployed trading automation software integrated with the Binance API.",
+          "tags": ["automation", "Python", "API", "REST API", "backend", "deployment", "integration"]
+        },
+        {
+          "text": "Engineered a high-performance data processing pipeline using Pandas and NumPy to handle large financial datasets.",
+          "tags": ["data pipelines", "Pandas", "NumPy", "data engineering", "ETL", "data processing", "Python", "performance"]
+        },
+        {
+          "text": "Took ownership of backend systems and operations automation, delivering results in a fast-paced environment.",
+          "tags": ["backend", "automation", "Python", "ownership", "startup", "operations"]
+        }
+      ]
+    },
+    {
+      "company":  "Remote Contract",
+      "title":    "Python Engineer",
+      "period":   "Dec 2024 – Feb 2025",
+      "location": "Remote",
+      "bullets": [
+        {
+          "text": "Architected a custom backtesting engine using Python (Pandas, NumPy) to simulate trading strategies on historical datasets.",
+          "tags": ["Python", "Pandas", "NumPy", "data engineering", "data processing", "backend", "algorithm"]
+        },
+        {
+          "text": "Implemented OOP principles to build modular, reusable strategy components, improving maintainability and test coverage.",
+          "tags": ["Python", "OOP", "testing", "backend", "software design", "modularity"]
+        },
+        {
+          "text": "Visualised performance metrics using Matplotlib, directly supporting optimisation of algorithmic trading logic.",
+          "tags": ["Matplotlib", "data visualisation", "Python", "analytics", "ML", "data"]
+        }
+      ]
+    }
+  ],
+
+  "projects": [
+    {
+      "name":    "BBC News Archive Scraper",
+      "period":  "2024",
+      "tech":    "Python, Selenium, Requests, SQL",
+      "description": "Scalable web scraper collecting latest and historical BBC News articles, with Selenium-based dynamic content loading, User-Agent rotation to prevent IP blocking, and SQL/CSV storage.",
+      "bullets": [
+        "Implemented Selenium-based dynamic content loading to handle JavaScript-rendered archive pages.",
+        "Designed User-Agent rotation and rate-limiting logic to maintain consistent scraping at scale.",
+        "Optimised navigation logic to store large volumes of historical data into SQL/CSV formats."
+      ],
+      "tags": ["scraping", "Selenium", "Python", "SQL", "web scraping", "data collection", "automation", "BeautifulSoup"]
+    },
+    {
+      "name":    "Lead Generation Web Crawler",
+      "period":  "2024",
+      "tech":    "Python, BeautifulSoup, SQL, Regex",
+      "description": "Multi-threaded data parser extracting structured contact information from target websites, with DNS/Regex-based filtering, robots.txt compliance, and SQL deduplication.",
+      "bullets": [
+        "Built multi-threaded crawler to extract structured contact data from hundreds of target websites.",
+        "Integrated DNS and Regex-based filtering to improve data quality and reduce noise.",
+        "Implemented robots.txt compliance, rate-limiting, and SQL-based deduplication logic."
+      ],
+      "tags": ["scraping", "BeautifulSoup", "Python", "SQL", "Regex", "data cleaning", "automation", "ETL", "data pipelines"]
+    },
+    {
+      "name":    "Cardiotoxicity ML Model (BIOPTIC)",
+      "period":  "Nov 2024",
+      "tech":    "Python, PyTorch Geometric, scikit-learn, RDKit",
+      "description": "Binary classification model predicting drug molecule cardiotoxicity from SMILES strings. Engineered molecular graph features using RDKit; built and trained a GNN using PyTorch Geometric.",
+      "bullets": [
+        "Engineered molecular features from SMILES strings for effective chemical representation.",
+        "Built binary classification model using PyTorch Geometric, scikit-learn, and RDKit.",
+        "Competed in the BIOPTIC ML competition, applying graph neural network techniques."
+      ],
+      "tags": ["ML", "machine learning", "Python", "PyTorch", "scikit-learn", "data engineering", "classification", "AI"]
+    }
+  ],
+
+  "skills": {
+    "languages":   ["Python (AsyncIO, Multiprocessing)", "SQL", "Bash", "C++"],
+    "backend":     ["FastAPI", "Flask", "RESTful APIs", "Selenium", "BeautifulSoup", "Playwright"],
+    "data_ml":     ["Pandas", "NumPy", "Scikit-learn", "Matplotlib", "Seaborn", "LLMs & Prompt Engineering"],
+    "devops":      ["Docker", "AWS S3", "Git / GitHub", "Linux / Terminal", "CI/CD Pipelines"],
+    "engineering": ["ETL Pipelines", "Data Parsing", "Data Cleaning & Normalisation", "Web Scraping", "Automation"]
+  },
+
+  "education": [
+    {
+      "degree":   "B.Sc. in Informatics and Applied Mathematics",
+      "school":   "Yerevan State University",
+      "period":   "Sept 2023 – Present",
+      "location": "Yerevan, Armenia",
+      "notes":    "Relevant coursework: Calculus, Abstract Algebra, Linear Algebra, Discrete Mathematics, Computer Networks, Data Structures, Machine Learning."
+    },
+    {
+      "degree":   "Data Science and Machine Learning Course",
+      "school":   "\"I\" Educational Foundation",
+      "period":   "Sept 2020 – Sept 2023",
+      "location": "Online",
+      "notes":    "Comprehensive coursework: data preprocessing, exploratory data analysis, ML algorithms, model evaluation."
+    }
+  ],
+
+  "spoken_languages": [
+    { "name": "Armenian", "level": "Native" },
+    { "name": "English",  "level": "C2 – Proficient" },
+    { "name": "Russian",  "level": "B1 – Intermediate" }
+  ],
+
+  "meta": {
+    "max_bullets_per_job":   4,
+    "max_projects_shown":    3,
+    "bullet_selection_mode": "scored"
+  }
+}

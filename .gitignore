@@ -1,0 +1,46 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+*venv/
+.env
+.env.*
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Logs and runtime files
+*.log
+logs/
+output/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jinja / generated files
+*.html
+
+# Database files
+*.db
+*.sqlite3
+
+# Test artifacts
+.pytest_cache/
+coverage/
+
+# Other
+*.bak
+*.tmp
