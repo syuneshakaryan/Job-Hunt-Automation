@@ -13,7 +13,7 @@ Ties all pipeline nodes into a single scheduled flow:
        │
   persist_crawl_task       CrawlResult → DB        (update companies + insert raw jobs)
        │
-  evaluate_job_task        raw job → JobEvaluation  (per job, via Ollama)
+  evaluate_job_task        raw job → JobEvaluation  (per job, via similarity evaluator)
        │
   persist_evaluation_task  JobEvaluation → DB       (update fit_score, tech_stack …)
        │
@@ -63,7 +63,7 @@ from database import (
     update_company,
     update_job,
 )
-from evaluator import check_llm_health, check_ollama_health, evaluate_with_gate, batch_evaluate_parallel
+from evaluator import check_evaluator_health, evaluate_with_gate, batch_evaluate_parallel
 from resume_builder import build_resume
 from telegram_bot import notify_job_match, send_daily_digest
 from typing import Optional
@@ -254,13 +254,13 @@ def persist_crawl_task(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TASK 5 — Evaluate jobs with local LLM
+# TASK 5 — Evaluate jobs with local similarity evaluator
 # ─────────────────────────────────────────────────────────────────────────────
 
 @task(name="evaluate-jobs", retries=2, retry_delay_seconds=5)
 def evaluate_jobs_task(raw_jobs: list[dict]) -> list[dict]:
     """
-    Run each raw job through the two-stage LLM evaluator:
+    Run each raw job through the two-stage similarity evaluator:
       1. Gate check (fast)
       2. Full JobEvaluation (if gate passes)
 
@@ -275,9 +275,9 @@ def evaluate_jobs_task(raw_jobs: list[dict]) -> list[dict]:
 
     now = _utcnow()
 
-    # Parallel evaluation — 2 workers for Ollama, up to 4 for Groq
-    max_workers = 2 if settings.llm_backend.lower() == "ollama" else 4
-    log.info(f"Evaluating {len(raw_jobs)} jobs | backend={settings.llm_backend} | workers={max_workers}")
+    # Parallel evaluation using the local similarity evaluator
+    max_workers = 4
+    log.info(f"Evaluating {len(raw_jobs)} jobs | workers={max_workers}")
 
     evaluated = batch_evaluate_parallel(raw_jobs, max_workers=max_workers)
 
@@ -300,20 +300,25 @@ def evaluate_jobs_task(raw_jobs: list[dict]) -> list[dict]:
             job["job_id"],
             fit_score=job["fit_score"],
             is_backend=int(job["is_backend"]),
-            tech_stack=job["tech_stack"],
+            tech_stack=json.dumps(job["tech_stack"]),
             rejection_reason=job.get("rejection_reason", ""),
             evaluated_at=now,
         )
-        evaluation = job.get("_evaluation")
-        qualified.append({
-            **job,
-            "tech_stack":  evaluation.core_tech_stack if evaluation else [],
-            "seniority":   job.get("seniority", "unknown"),
-            "is_remote":   job.get("is_remote_friendly"),
-            "strengths":   json.loads(job.get("matching_strengths", "[]")) if isinstance(job.get("matching_strengths"), str) else job.get("matching_strengths", []),
-            "gaps":        json.loads(job.get("potential_gaps", "[]")) if isinstance(job.get("potential_gaps"), str) else job.get("potential_gaps", []),
-        })
-        log.info(f"  ✓ QUALIFIED — score={job['fit_score']} {job.get('title', '')!r}")
+        
+        # Only include jobs that meet the score threshold
+        if job["fit_score"] >= settings.fit_score_threshold:
+            evaluation = job.get("_evaluation")
+            qualified.append({
+                **job,
+                "tech_stack":  evaluation.core_tech_stack if evaluation else [],
+                "seniority":   job.get("seniority", "unknown"),
+                "is_remote":   job.get("is_remote_friendly"),
+                "strengths":   json.loads(job.get("matching_strengths", "[]")) if isinstance(job.get("matching_strengths"), str) else job.get("matching_strengths", []),
+                "gaps":        json.loads(job.get("potential_gaps", "[]")) if isinstance(job.get("potential_gaps"), str) else job.get("potential_gaps", []),
+            })
+            log.info(f"  ✓ QUALIFIED — score={job['fit_score']} {job.get('title', '')!r}")
+        else:
+            log.debug(f"  ✗ REJECTED — score={job['fit_score']} {job.get('title', '')!r}")
 
     log.info(f"Evaluation done: {len(qualified)}/{len(raw_jobs)} jobs qualified")
     return qualified
@@ -445,10 +450,10 @@ def preflight_task() -> dict:
     """
     log = get_run_logger()
     flags = {
-        "db_ok":      False,
-        "ollama_ok":  False,
-        "telegram_ok": False,
-        "csv_found":  False,
+        "db_ok":        False,
+        "evaluator_ok": False,
+        "telegram_ok":  False,
+        "csv_found":    False,
     }
 
     # DB init (idempotent)
@@ -459,15 +464,13 @@ def preflight_task() -> dict:
     except Exception as exc:
         raise ValueError(f"Database init failed: {exc}") from exc
 
-    # Ollama
-    if check_llm_health():
-        flags["ollama_ok"] = True
-        log.info(f"✅ LLM backend ready ({settings.llm_backend})")
+    # Local similarity evaluator
+    if check_evaluator_health():
+        flags["evaluator_ok"] = True
+        log.info("✅ Similarity evaluator ready")
     else:
         log.warning(
-            f"⚠️  LLM backend '{settings.llm_backend}' not available — evaluation will be skipped. "
-            "For ollama: ollama serve && ollama pull "
-            f"{settings.ollama_model}"
+            "⚠️  Similarity evaluator not available — evaluation will be skipped."
         )
 
     # Telegram
@@ -549,9 +552,9 @@ def job_hunter_flow(
     raw_jobs = persist_crawl_task(companies, crawl_results)
     log.info(f"Raw jobs discovered this run: {len(raw_jobs)}")
 
-    # ── 5. LLM evaluation ────────────────────────────────────────────────────
-    if not flags.get("ollama_ok"):
-        log.warning("Skipping LLM evaluation (Ollama not available)")
+    # ── 5. Job evaluation ───────────────────────────────────────────────────
+    if not flags.get("evaluator_ok"):
+        log.warning("Skipping job evaluation (similarity evaluator not available)")
         qualified_jobs: list[dict] = []
     else:
         qualified_jobs = evaluate_jobs_task(raw_jobs)

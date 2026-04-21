@@ -21,6 +21,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import random
 import re
 import time
 from dataclasses import dataclass, field
@@ -34,6 +35,7 @@ from playwright.async_api import (
     Page,
     TimeoutError as PWTimeout,
 )
+from playwright_stealth import stealth_async
 
 from config import settings
 
@@ -192,8 +194,26 @@ def _is_careers_link(href: str, text: str) -> bool:
 
 def _is_target_job_link(href: str, text: str) -> bool:
     """Return True if an anchor looks like a Python/Backend job posting."""
-    combined = f"{text} {href}"
-    return any(pat.search(combined) for pat in TARGET_ROLE_KEYWORDS)
+    combined = f"{text} {href}".lower()
+    
+    # Must have at least one target technology keyword
+    has_tech = any(pat.search(combined) for pat in TARGET_ROLE_KEYWORDS)
+    if not has_tech:
+        return False
+    
+    # Should also have job-related context to avoid general pages
+    job_context_patterns = [
+        r"\bjob\b", r"\bposition\b", r"\brole\b", r"\bopening\b", r"\bhiring\b",
+        r"\bapply\b", r"\bcareer\b", r"\bengineer\b", r"\bdeveloper\b",
+        r"\bsenior\b", r"\bjunior\b", r"\blead\b", r"\bprincipal\b",
+    ]
+    
+    has_job_context = any(re.search(p, combined) for p in job_context_patterns)
+    
+    # Allow if it has strong job context, or if the href contains job-specific paths
+    href_has_job_path = any(word in href.lower() for word in ["job", "position", "career", "opening"])
+    
+    return has_job_context or href_has_job_path
 
 
 def _normalise_url(base: str, href: str) -> str:
@@ -212,21 +232,59 @@ def _same_origin(url_a: str, url_b: str) -> bool:
 # Page-level scraping helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _safe_goto(page: Page, url: str, timeout: int = None) -> bool:
+async def _safe_goto(
+    page: Page, 
+    url: str, 
+    timeout: int = None,
+    max_retries: int = None,
+    base_delay: float = None
+) -> bool:
     """
-    Navigate to a URL, returning True on success.
-    Swallows TimeoutError and common network errors.
+    Navigate to a URL with retry logic and exponential backoff.
+    Returns True on success.
     """
     t = timeout or settings.page_timeout_ms
-    try:
-        resp = await page.goto(url, timeout=t, wait_until="domcontentloaded")
-        return resp is not None and resp.ok
-    except PWTimeout:
-        logger.warning(f"Timeout loading: {url}")
-        return False
-    except Exception as exc:
-        logger.warning(f"Navigation error [{url}]: {exc}")
-        return False
+    max_retries = max_retries if max_retries is not None else settings.max_retries
+    base_delay = base_delay if base_delay is not None else settings.base_retry_delay
+    
+    for attempt in range(max_retries):
+        try:
+            # Add random delay before request (anti-detection)
+            delay = base_delay * (2 ** attempt) + random.uniform(settings.random_delay_min, settings.random_delay_max)
+            if attempt > 0:
+                logger.debug(f"Retry {attempt}/{max_retries} for {url} after {delay:.1f}s")
+                await asyncio.sleep(delay)
+            
+            resp = await page.goto(url, timeout=t, wait_until="domcontentloaded")
+            
+            # Additional wait for dynamic content
+            await asyncio.sleep(random.uniform(0.5, 1.5))
+            
+            if resp is not None:
+                if resp.ok:
+                    return True
+                elif resp.status in [429, 503, 502, 504]:  # Rate limited or server error
+                    logger.warning(f"HTTP {resp.status} for {url}, will retry")
+                    continue
+                else:
+                    logger.debug(f"HTTP {resp.status} for {url}, not retrying")
+                    return False
+            else:
+                logger.warning(f"No response for {url}, retrying")
+                continue
+                
+        except PWTimeout:
+            logger.warning(f"Timeout loading {url} (attempt {attempt+1}/{max_retries})")
+            if attempt == max_retries - 1:
+                return False
+            continue
+        except Exception as exc:
+            logger.warning(f"Navigation error [{url}] (attempt {attempt+1}/{max_retries}): {exc}")
+            if attempt == max_retries - 1:
+                return False
+            continue
+    
+    return False
 
 
 async def _page_text(page: Page) -> str:
@@ -375,6 +433,58 @@ def _looks_like_service_page(title: str, description: str) -> bool:
     return service_hits >= 2 and job_hits == 0
 
 
+def _looks_like_job_posting(title: str, description: str) -> bool:
+    """
+    Additional check to ensure the page content actually describes a job opening,
+    not just a general company page or service description.
+    Returns True if it appears to be a legitimate job posting.
+    """
+    combined = (title + " " + description[:1000]).lower()
+    
+    # Must have some job-specific indicators
+    job_indicators = [
+        r"\bjob description\b",
+        r"\bjob requirements?\b", 
+        r"\bresponsibilities\b",
+        r"\bqualifications\b",
+        r"\bwhat you'll do\b",
+        r"\bwhat you will\b",
+        r"\bwe are looking for\b",
+        r"\bwe're looking for\b",
+        r"\bjoin our team\b",
+        r"\bapply now\b",
+        r"\bapplication process\b",
+        r"\bsalary\b",
+        r"\bcompensation\b",
+        r"\bbenefits\b",
+        r"\brequirements\b",
+        r"\bskills required\b",
+        r"\bexperience required\b",
+        r"\byears of experience\b",
+    ]
+    
+    # Should not have too many general company page indicators
+    company_page_indicators = [
+        r"\babout us\b",
+        r"\bour company\b",
+        r"\bour mission\b",
+        r"\bour values\b",
+        r"\bcontact us\b",
+        r"\bprivacy policy\b",
+        r"\bterms of service\b",
+        r"\bcareers overview\b",
+        r"\blife at\b",
+        r"\bwhy work here\b",
+        r"\bour culture\b",
+    ]
+    
+    job_score = sum(1 for p in job_indicators if re.search(p, combined))
+    company_score = sum(1 for p in company_page_indicators if re.search(p, combined))
+    
+    # Must have at least 2 job indicators and fewer company indicators
+    return job_score >= 2 and company_score <= 1
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # NODE 2 — Careers page scraper
 # ─────────────────────────────────────────────────────────────────────────────
@@ -392,12 +502,12 @@ async def scrape_careers_page(
     Returns:
       (confirmed_careers_url, list[JobListing])
     """
-    ok = await _safe_goto(page, careers_url)
+    ok = await _safe_goto(page, careers_url, max_retries=3, base_delay=1.0)
     if not ok:
         return careers_url, []
 
     # Some ATS pages need a moment to render JS
-    await asyncio.sleep(1.2)
+    await asyncio.sleep(random.uniform(1.0, 2.5))
 
     links = await _extract_links(page, page.url)
     confirmed_url = page.url
@@ -426,11 +536,11 @@ async def scrape_careers_page(
         job_url = link["href"]
         title   = _clean_title(link["text"])
 
-        ok = await _safe_goto(page, job_url)
+        ok = await _safe_goto(page, job_url, max_retries=2, base_delay=0.5)
         if not ok:
             continue
 
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(random.uniform(0.8, 2.0))
 
         # Try to get a better title from the page itself
         page_title = await _extract_page_title(page)
@@ -448,6 +558,11 @@ async def scrape_careers_page(
             logger.debug(f"Service page heuristic fired, skipping: {title!r}")
             continue
 
+        # Additional check: ensure this is actually a job posting page
+        if not _looks_like_job_posting(title, description):
+            logger.debug(f"Not a job posting page, skipping: {title!r}")
+            continue
+
         jobs.append(JobListing(
             title=title,
             url=job_url,
@@ -456,7 +571,7 @@ async def scrape_careers_page(
         ))
         logger.info(f"  ✓ Job extracted: {title[:60]!r} | {len(description)} chars")
 
-        await asyncio.sleep(settings.crawl_delay_seconds * 0.5)
+        await asyncio.sleep(settings.crawl_delay_seconds * 0.5 + random.uniform(0.5, 1.5))
 
     return confirmed_url, jobs
 
@@ -582,12 +697,31 @@ async def crawl_domain(
       3. Load each job page → extract description
 
     Uses a single tab (page) per domain, reused across steps.
+    Includes dynamic delays and retry logic.
     """
     result = CrawlResult(domain=domain)
     page = await context.new_page()
+    
+    # Track response times for dynamic delay adjustment
+    response_times = []
+    consecutive_failures = 0
 
     try:
         # ── Step 1: Homepage ──────────────────────────────────────────────────
+        start_time = time.perf_counter()
+        success = await _safe_goto(page, f"https://{domain}", max_retries=3, base_delay=1.0)
+        if not success:
+            # Try http fallback with more retries
+            success = await _safe_goto(page, f"http://{domain}", max_retries=2, base_delay=2.0)
+        
+        if not success:
+            result.status = "failed"
+            result.error  = "Could not load homepage after retries"
+            return result
+            
+        response_time = time.perf_counter() - start_time
+        response_times.append(response_time)
+        
         final_url, emails, careers_urls, html_hash = await crawl_homepage(page, domain)
 
         if not final_url:
@@ -606,20 +740,38 @@ async def crawl_domain(
 
         # ── Step 2: Try careers URLs until one yields jobs ────────────────────
         for careers_url in careers_urls[:3]:  # try up to 3 candidates
-            await asyncio.sleep(settings.crawl_delay_seconds)
+            # Dynamic delay based on response times and consecutive failures
+            base_delay = settings.crawl_delay_seconds
+            if response_times:
+                avg_response = sum(response_times) / len(response_times)
+                base_delay = max(base_delay, avg_response * 0.5)  # At least 50% of avg response time
+            
+            if consecutive_failures > 0:
+                base_delay *= (2 ** consecutive_failures)  # Exponential backoff
+            
+            base_delay += random.uniform(1.0, 3.0)  # Add randomness
+            await asyncio.sleep(base_delay)
+            
+            start_time = time.perf_counter()
             confirmed_url, jobs = await scrape_careers_page(
                 page,
                 careers_url,
                 final_url,
                 max_jobs=max_jobs_per_domain,
             )
+            response_time = time.perf_counter() - start_time
+            response_times.append(response_time)
+            
             if jobs:
                 result.career_url = confirmed_url
                 result.jobs       = jobs
                 result.status     = "ok"
+                consecutive_failures = 0  # Reset on success
                 break
-            elif not result.career_url:
-                result.career_url = confirmed_url  # record even if empty
+            else:
+                consecutive_failures += 1
+                if not result.career_url:
+                    result.career_url = confirmed_url  # record even if empty
 
         if not result.jobs:
             logger.info(f"[{domain}] Careers page found but no matching job links")
@@ -643,18 +795,24 @@ async def crawl_domain(
 
 async def crawl_batch(
     domains: list[str],
-    concurrency: int = 3,
+    concurrency: int = 1,
     headless: bool = True,
 ) -> list[CrawlResult]:
     """
-    Crawl a list of domains with bounded concurrency.
+    Crawl a list of domains with bounded concurrency and dynamic adjustments.
 
-    concurrency=3 is conservative — enough for speed without
-    triggering bot-detection on most sites.
+    concurrency=1 is conservative — enough for speed without
+    triggering bot-detection on most sites. Will adjust based on success rate
+    if dynamic_concurrency is enabled.
     """
     results: list[CrawlResult] = []
-    semaphore = asyncio.Semaphore(concurrency)
-
+    
+    # Dynamic concurrency adjustment
+    current_concurrency = concurrency
+    success_count = 0
+    total_processed = 0
+    use_dynamic = settings.dynamic_concurrency
+    
     async with async_playwright() as pw:
         browser: Browser = await pw.chromium.launch(
             headless=headless,
@@ -662,6 +820,39 @@ async def crawl_batch(
                 "--no-sandbox",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
+                "--disable-web-security",
+                "--disable-features=VizDisplayCompositor",
+                "--disable-ipc-flooding-protection",
+                "--disable-background-timer-throttling",
+                "--disable-renderer-backgrounding",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-field-trial-config",
+                "--disable-back-forward-cache",
+                "--disable-hang-monitor",
+                "--disable-prompt-on-repost",
+                "--force-color-profile=srgb",
+                "--metrics-recording-only",
+                "--no-first-run",
+                "--enable-automation=false",
+                "--password-store=basic",
+                "--use-mock-keychain",
+                "--no-default-browser-check",
+                "--no-pings",
+                "--no-zygote",
+                "--disable-gpu-sandbox",
+                "--disable-software-rasterizer",
+                "--disable-background-media-download",
+                "--disable-client-side-phishing-detection",
+                "--disable-component-extensions-with-background-pages",
+                "--disable-default-apps",
+                "--disable-sync",
+                "--disable-translate",
+                "--hide-scrollbars",
+                "--metrics-recording-only",
+                "--mute-audio",
+                "--no-first-run",
+                "--safebrowsing-disable-auto-update",
+                "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             ],
         )
 
@@ -674,8 +865,54 @@ async def crawl_batch(
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
             locale="en-US",
+            timezone_id="America/New_York",
             java_script_enabled=True,
+            # Add more realistic browser properties
+            device_scale_factor=1,
+            is_mobile=False,
+            has_touch=False,
+            # Set common browser permissions
+            permissions=["geolocation"],
+            # Add extra HTTP headers to appear more human
+            extra_http_headers={
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Cache-Control": "max-age=0",
+                "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": '"Linux"',
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
+            },
         )
+
+        # Set additional browser properties to avoid detection
+        await context.add_init_script("""
+            // Remove webdriver property
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined,
+            });
+            
+            // Mock plugins and languages
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [
+                    { name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer' },
+                    { name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+                    { name: 'Native Client', description: '', filename: 'internal-nacl-plugin' }
+                ],
+            });
+            
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
+            });
+        """)
+
+        # Apply stealth to avoid detection
+        await stealth_async(context)
 
         # Intercept and block heavy assets to speed up crawling
         await context.route(
@@ -684,20 +921,49 @@ async def crawl_batch(
         )
 
         async def _bounded_crawl(domain: str) -> CrawlResult:
-            async with semaphore:
-                start = time.perf_counter()
-                res = await crawl_domain(domain, context)
-                elapsed = time.perf_counter() - start
-                logger.info(
-                    f"[{domain}] done in {elapsed:.1f}s | "
-                    f"status={res.status} | "
-                    f"emails={len(res.emails)} | "
-                    f"jobs={len(res.jobs)}"
-                )
-                return res
+            nonlocal current_concurrency, success_count, total_processed
+            
+            start = time.perf_counter()
+            res = await crawl_domain(domain, context)
+            elapsed = time.perf_counter() - start
+            
+            total_processed += 1
+            if res.status == "ok":
+                success_count += 1
+            
+            # Dynamic concurrency adjustment every N domains
+            check_interval = settings.success_rate_check_interval
+            if use_dynamic and total_processed % check_interval == 0 and total_processed > 0:
+                success_rate = success_count / total_processed
+                if success_rate < 0.3:  # Less than 30% success
+                    current_concurrency = max(1, current_concurrency - 1)
+                    logger.warning(f"Low success rate ({success_rate:.1%}), reducing concurrency to {current_concurrency}")
+                elif success_rate > 0.7 and current_concurrency < concurrency * 2:  # More than 70% success
+                    current_concurrency = min(concurrency * 2, current_concurrency + 1)
+                    logger.info(f"Good success rate ({success_rate:.1%}), increasing concurrency to {current_concurrency}")
+            
+            logger.info(
+                f"[{domain}] done in {elapsed:.1f}s | "
+                f"status={res.status} | "
+                f"emails={len(res.emails)} | "
+                f"jobs={len(res.jobs)} | "
+                f"concurrency={current_concurrency}"
+            )
+            return res
 
-        tasks = [_bounded_crawl(d) for d in domains]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
+        # Process domains in smaller batches to allow concurrency adjustments
+        batch_size = 20
+        for i in range(0, len(domains), batch_size):
+            batch = domains[i:i + batch_size]
+            semaphore = asyncio.Semaphore(current_concurrency)
+            
+            async def _bounded_crawl_with_semaphore(domain: str) -> CrawlResult:
+                async with semaphore:
+                    return await _bounded_crawl(domain)
+            
+            tasks = [_bounded_crawl_with_semaphore(d) for d in batch]
+            batch_results = await asyncio.gather(*tasks, return_exceptions=False)
+            results.extend(batch_results)
 
         await context.close()
         await browser.close()

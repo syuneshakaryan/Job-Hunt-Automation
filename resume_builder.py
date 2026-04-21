@@ -125,7 +125,7 @@ def extract_jd_keywords(jd_text: str, tech_stack: list[str], top_n: int = 5) -> 
     that should appear in the tailored resume.
 
     Strategy (no LLM required):
-      1. Start with the tech_stack already identified by the evaluator LLM.
+      1. Start with the tech_stack already identified by the evaluator.
       2. Scan the JD for additional tech terms not in tech_stack.
       3. Use word-frequency counting on non-stop-words to find repeated terms.
       4. De-duplicate and return the most prominent N keywords.

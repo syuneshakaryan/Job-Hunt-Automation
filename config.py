@@ -20,13 +20,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str = "YOUR_TELEGRAM_BOT_TOKEN"
     telegram_chat_id:   str = "YOUR_TELEGRAM_CHAT_ID"
 
-    # Ollama
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model:    str = "llama3.1:8b"
-    llm_backend:   str = "ollama"
+    # Local similarity evaluator
 
-    groq_api_key:  str = "YOUR_GROQ_API_KEY"
-    groq_model:    str = "llama-3.3-70b-versatile"
 
     # Your personal info for ATS form-filling
     your_full_name: str = "YOUR_FULL_NAME"
@@ -37,10 +32,18 @@ class Settings(BaseSettings):
     your_location:  str = "YOUR_LOCATION"
 
     # Pipeline tuning
-    batch_size:           int   = 25
+    batch_size:           int   = 100
     fit_score_threshold:  int   = 75
     crawl_delay_seconds:  float = 2.0
     page_timeout_ms:      int   = 15_000
+    
+    # Crawling anti-detection settings
+    max_retries:          int   = 3
+    base_retry_delay:     float = 1.0
+    random_delay_min:     float = 0.5
+    random_delay_max:     float = 3.0
+    dynamic_concurrency:  bool  = True
+    success_rate_check_interval: int = 10
 
     # Paths (derived, not from .env)
     @property

@@ -68,11 +68,11 @@ CREATE TABLE IF NOT EXISTS jobs (
     url            TEXT    NOT NULL UNIQUE,
     description    TEXT,                 -- raw scraped text of the posting
 
-    -- LLM evaluation results
-    fit_score      INTEGER DEFAULT 0,    -- 0–100 from Ollama evaluator
+    -- evaluation results
+    fit_score      INTEGER DEFAULT 0,    -- 0–100 from semantic similarity evaluator
     is_backend     INTEGER DEFAULT 0,    -- 0/1 bool
     tech_stack     TEXT    DEFAULT '[]', -- JSON array e.g. ["Python","FastAPI"]
-    rejection_reason TEXT,               -- why LLM scored it low (optional)
+    rejection_reason TEXT,               -- why the similarity evaluator scored it low (optional)
 
     -- application workflow
     applied_status TEXT    NOT NULL DEFAULT 'pending',
